@@ -179,7 +179,6 @@ def get_directory_listings(taxonomy):
 				last_page = re.compile('</span><a href="%s' % url + 'page-([0-9]+)/">')
 				max_page = last_page.search(page.replace('\n', '')).group(1)
 			    # Dump to disk.
-			    pdb.set_trace()
 			    with open(prefix + "directory_listing/tech_%s_%s_%s.html" % (url.split('/')[3], url.split('/')[4], str(pg)), "w") as OUT:
 				OUT.write(page + '\n')
 			    pg += 1
