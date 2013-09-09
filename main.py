@@ -43,7 +43,8 @@ def main():
         blogurls = fetch_feeds.harvest_urls()
         # TODO(ryan): Should be able to resume here.
         fetch_feeds.publish_to_redis(blogurls)
-    #fetch_feeds.probe_feeds(args.MASTER_IP, args.cores, args.DISTRIBUTED)
+    fetch_feeds.probe_feeds(args.MASTER_IP or "127.0.0.1",
+        args.cores, args.DISTRIBUTED)
     # fetch_feeds.reconcile()
     # fetch_feeds.extract_titles()
     # sanitizing_modeling.sanitize("/home/ryan/Documents/STOPWORDS",
