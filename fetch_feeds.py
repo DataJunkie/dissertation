@@ -2,7 +2,7 @@ from lxml.html import parse
 from lxml import etree
 from multiprocessing import Process, cpu_count
 from progress_bar import ProgressBar
-from config import prefix
+from config import config
 import urllib2
 import pdb
 import re
@@ -31,6 +31,7 @@ extract_titles should be in another file, but shoved it here for space.
 
 patt = re.compile(r'(.*?) (?:/ (.*?) )?blogs')
 
+prefix = config['PREFIX']
 feeds_path = prefix + "raw_feeds/"
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s %(message)s',
@@ -39,6 +40,17 @@ logging.basicConfig(format='%(levelname)s: %(asctime)s %(message)s',
 HTTP_RETRIES = 3      # Number of times to retry on HTTP or connection failure.
 HTTP_TIMEOUT = 7      # Number of seconds to wait for a response if delay.
 socket.setdefaulttimeout(HTTP_TIMEOUT)  # Fail if we wait too long.
+
+
+def publish_to_redis(urls):
+    #Initialize work queue.
+    r = redis.Redis()
+    r.flushall()
+    r.set('errors', '0')
+    r.set('successes', '0')
+
+    for url in urls:
+        r.rpush('blogs', url)
 
 
 def harvest_urls():
@@ -111,7 +123,7 @@ probe_feeds calls probe_worker calls probe
 """
 
 
-def probe(urlbase, fileno):
+def probe(urlbase, fileno, ip):
     """Attempts to autodiscover the RSS feed URL given a base url
     download the feed to disk.
 
@@ -124,6 +136,7 @@ def probe(urlbase, fileno):
                   2. files containing mapping from PID+number to URL.
     """
 
+    r = redis.Redis(ip)
     #FETCH
     cur = 0
     """
@@ -133,6 +146,7 @@ def probe(urlbase, fileno):
     - crawler traps, where the site hangs and does not return response.
     - all other errors are fatal, and the site is skipped.
     """
+    # Fetch the website containing the feed.
     while cur < HTTP_RETRIES:
         try:
             page = urllib2.urlopen(urlbase)
@@ -144,9 +158,9 @@ def probe(urlbase, fileno):
             TRAP.close()
         cur += 1
     if cur == HTTP_RETRIES:  # timeout on all tries.
-        return False
+        raise Exception("Exceeded HTTP_RETRIES without success.")
 
-    #PARSE
+    # Parse the HTML for the website to find the RSS feed links.
     root = parse(page).getroot()
     #Use the autodiscovery standard, ignoring comment feeds.
     links = root.xpath('//link[@type="application/rss+xml" and ' +
@@ -161,6 +175,7 @@ def probe(urlbase, fileno):
             url = urlbase + url
             print >> OUT, urlbase, url, links[0].get('title').encode('utf-8')
             OUT.close()
+            r.rpush('good_url', url)
         else:
             #1) Webmaster chose not to abide by the standard
             #2) Webmaster provided bad URL that does not contain feed links.
@@ -168,8 +183,10 @@ def probe(urlbase, fileno):
                           % str(os.getpid()), "a")   # No link found.
             print >> NOLINK, urlbase
             NOLINK.close()
+            raise Exception("No URLs detected.")
             return False
-    #Once we have the feed URL, fetch it.
+
+    # Now fetch the actual RSS feed.
     cur = 0
     while cur < HTTP_RETRIES:
         cur += 1
@@ -198,55 +215,42 @@ def probe(urlbase, fileno):
         FAIL = open(prefix + "meta/failed-%s.log" % str(os.getpid()), "a")
         print >> FAIL, url
         FAIL.close()
+        raise Exception("RSS feed found but could not be fetched.")
     return True
 
 
-def probe_feeds(manifest=None):
+def probe_feeds(master_ip="127.0.0.1", cores=cpu_count(), distributed=False):
     """Autodiscover RSS feeds from a manifest, in parallel.
+
+    Input is either a list of URLs, or an IP address to a Redis
+    server containing the list of URLs.
 
     manifest    a list of URLs of blogs.
 
     Returns
     """
-    if not os.path.exists(feeds_path):
-        os.mkdir(feeds_path)
-    if not manifest:
-        logging.info("Feeds already downloaded. Skipping...")
-        return
-    cores = cpu_count()
+
     logging.info("Fetching feeds using HTTP on %d cores." % cores)
-
-    #Initialize work queue.
-    r = redis.Redis()
-    r.flushall()
-    r.set('errors', '0')
-    r.set('successes', '0')
-
-    #Either use the provided manifest, or read it from the file on disk.
-    if not manifest:
-        IN = open(prefix + "meta/MANIFEST")
-        for line in IN:
-            cat, title, url = line.strip().split('    ')
-            r.rpush('blogs', url)
-        IN.close()
-    else:
-        for blog in manifest:
-            r.push('blogs', blog[3])  # Insert URLs into work queue.
-
+    cores = 1
+    probe_worker(master_ip)
     #Setup processes for parallel processing and the progress bar.
-    procs = [Process(target=probe_worker, args=(None,)) for p in range(cores-1)]
-    procs.append(Process(target=progbar, args=(None,)))
-    for p in procs:
-        p.start()
-    for p in procs:
-        p.join()
-    logging.info("Success: %d" % int(r.get('successes')))
-    logging.info("Failures: %d" % int(r.get('errors')))
-    logging.info("Probing completed.")
+    #procs = [Process(target=probe_worker, args=(master_ip,)) for p in range(cores-1)]
+    # Only launch progress bar if local.
+    #if not distributed:
+    #    procs.append(Process(target=progbar, args=(master_ip,)))
+    #for p in procs:
+    #    p.start()
+    #for p in procs:
+    #    p.join()
+    r = redis.Redis(master_ip)
+    #pdb.set_trace()
+    #logging.info("Success so far: %d" % int(r.get('successes')))
+    #logging.info("Failures so far: %d" % int(r.get('errors')))
+    #logging.info("Probing completed for this worker.")
 
 
-def progbar(foo):
-    r = redis.Redis()
+def progbar(ip):
+    r = redis.Redis(ip)
     initial = r.llen('blogs')
     prog = ProgressBar(0, initial, 77, mode='fixed', char='#')
     while True:
@@ -259,30 +263,33 @@ def progbar(foo):
     return
 
 
-def probe_worker(foo):
+def probe_worker(ip):
     """Utility that simply pulls a URL off the queue and makes
     a call to "probe" to actually do the work.
 
     foo   Dummy argument. Just to shutup the job constructor.
     """
     fileno = 0
-    r = redis.Redis()
+    r = redis.Redis(ip)
     while True:
+        pdb.set_trace()
         url = r.lpop('blogs')   # pull URL off queue.
         if not url:
             break     # means we are done.
         try:
-            content = probe(url, fileno)    # does the work.
+            content = probe(url, fileno, ip)    # does the work.
             if content:
                 r.incr('successes')
             else:
                 r.incr('errors')
         except Exception, e:
+            # TODO(ryan): What kind of error occurred?
             r.incr('errors')
             logging.info("Error occured: %s, URL: %s" % (e, url))
             ERR = open(prefix + "meta/errors-%s.log" % str(os.getpid()), "a")
             print >> ERR, url, e
             ERR.close()
+            r.rpush('errors', '|'.join([url, e]))
         fileno += 1
 
 
@@ -411,3 +418,27 @@ def reconcile():
     #Dump these mappings to disk.
     cPickle.dump(idvals, open(prefix + "idvals.pickle", "w"))
     cPickle.dump(urls, open(prefix + "blogurls.pickle", "w"))
+
+'''
+Graveyard
+
+    # Either the list of URLs is passed in, is stored on disk,
+    # or is distributed in Redis.
+    if not kwargs['urls']:  # not passed in.
+        # If in local mode, use file.
+        IN = open(prefix + "meta/MANIFEST")
+        for line in IN:
+            cat, title, url = line.strip().split('    ')
+            r.rpush('blogs', url)
+        IN.close()
+    else:  # URLs were passed in.
+        for blog in kwargs['urls']:
+            r.push('blogs', blog[3])  # Insert URLs into work queue.
+
+        if not os.path.exists(feeds_path):
+        os.mkdir(feeds_path)
+    if not manifest:
+        logging.info("Feeds already downloaded. Skipping...")
+        return
+
+'''

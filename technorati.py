@@ -146,7 +146,7 @@ def get_directory_listings(taxonomy):
                 max_page = last_page.search(page.replace('\n', '')).group(1)
             # Dump to disk.
             with open(prefix + "directory_listing/tech_%s_%s.html" % (url.split('/')[-2], str(pg)), "w") as OUT:
-		print prefix + "directory_listing/tech_%s_%s.html" % (url.split('/')[-2], str(pg))
+                print prefix + "directory_listing/tech_%s_%s.html" % (url.split('/')[-2], str(pg))
                 OUT.write(page + '\n')
             pg += 1
             # Technorati tends to ban for hammering. Just stop after 20 pages.
@@ -159,31 +159,33 @@ def get_directory_listings(taxonomy):
         #each category, scrape each page.
         logging.info("Scraping subcategories of category %s." % cat[0])
         subcats = taxonomy[cat]
-	if subcats:
-		for subcat in subcats:
-			url = subcat[1]
-			pg = 1  # page counter. Set upper maximum to avoid being banned.
-			while True:
-			    toOpen = "http://technorati.com" + url + "page-%s/" % str(pg)
-			    # technorati.org is fairly stable. Assume the page fetched without error.
-			    # If not, FAIL the whole process. This is very rare.
-			    try:
-				page = urllib2.urlopen(toOpen).read().replace('\n', '')
-				if not page:
-				    raise Exception()
-			    except:
-				logging.error("Could not fetch page %d of subcategory %s. FAIL." % (pg, cat[0]))
-				sys.exit(-1)
-			    if pg == 1:
-				# Extract the last page number.
-				last_page = re.compile('</span><a href="%s' % url + 'page-([0-9]+)/">')
-				max_page = last_page.search(page.replace('\n', '')).group(1)
-			    # Dump to disk.
-			    with open(prefix + "directory_listing/tech_%s_%s_%s.html" % (url.split('/')[3], url.split('/')[4], str(pg)), "w") as OUT:
-				OUT.write(page + '\n')
-			    pg += 1
-			    # Technorati tends to ban for hammering. Just stop after 20 pages.
-			    if pg > min(max_page, HTTP_MAX_PAGE):
-				break
-			    # Let the server recover after our abuse.
-			    time.sleep(1)
+        if subcats:
+            for subcat in subcats:
+                url = subcat[1]
+                pg = 1  # page counter. Set upper maximum to avoid being banned.
+                while True:
+                    toOpen = "http://technorati.com" + url + "page-%s/" % str(pg)
+                    # technorati.org is fairly stable. Assume the page fetched without error.
+                    # If not, FAIL the whole process. This is very rare.
+                    try:
+                        page = urllib2.urlopen(toOpen).read().replace('\n', '')
+                        if not page:
+                            raise Exception()
+                    except Exception as e:
+                        logging.error("Could not fetch page %d of subcategory %s. %s FAIL." % (pg, cat[0], e))
+                        sys.exit(-1)
+                    if pg == 1:
+                        # Extract the last page number.
+                        last_page = re.compile('</span><a href="%s' % url + 'page-([0-9]+)/">')
+                        max_page = last_page.search(page.replace('\n', '')).group(1)
+                    # Dump to disk.
+                    with open(prefix + "directory_listing/tech_%s_%s_%s.html" %
+                        (url.split('/')[3], url.split('/')[4], str(pg)), "w") \
+                        as OUT:
+        			        OUT.write(page + '\n')
+                    pg += 1
+                    # Technorati tends to ban for hammering. Just stop after 20 pages.
+                    if pg > min(max_page, HTTP_MAX_PAGE):
+                      break
+                    # Let the server recover after our abuse.
+                    time.sleep(1)
