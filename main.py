@@ -18,11 +18,11 @@ def process_arguments():
     # If running in local mode, automatically make this the master.
     group.add_argument("-m", "--master", action="store_true", dest="MASTER",
         default=False,
-        help="specify to host the Redis queue on this node and do initial 
-        processing.")
+        help="specify to host the Redis queue on this node and do initial"
+        "processing.")
     group.add_argument('-w', "--master-ip", dest="MASTER_IP", 
-      help="Run in worker mode and provide the IP address of the master node 
-      hosting the Redis queue.")
+      help="Run in worker mode and provide the IP address of the master node" 
+      "hosting the Redis queue.")
     group.add_argument('-l', "--local", action="store_true", dest="LOCAL", 
       default=False, help="Run in local mode.")
 
@@ -43,7 +43,7 @@ def main():
         blogurls = fetch_feeds.harvest_urls()
         # TODO(ryan): Should be able to resume here.
         fetch_feeds.publish_to_redis(blogurls)
-    fetch_feeds.probe_feeds(args.MASTER_IP, args.cores, args.DISTRIBUTED)
+    #fetch_feeds.probe_feeds(args.MASTER_IP, args.cores, args.DISTRIBUTED)
     # fetch_feeds.reconcile()
     # fetch_feeds.extract_titles()
     # sanitizing_modeling.sanitize("/home/ryan/Documents/STOPWORDS",

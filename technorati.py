@@ -52,7 +52,8 @@ def get_directory():
 
     #Prepare output directory.
     if not os.path.exists(prefix + "directory_listing"):
-        os.mkdir(prefix)
+        if not os.path.exists(prefix):
+            os.mkdir(prefix)
         os.mkdir(prefix + "directory_listing")
     else:
         # If taxonomy already exists, open it from disk and return it.
