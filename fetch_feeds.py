@@ -35,7 +35,7 @@ patt = re.compile(r'(.*?) (?:/ (.*?) )?blogs')
 prefix = config['PREFIX']
 feeds_path = prefix + "raw_feeds/"
 
-logging.basicConfig(filename='%s/logs/fetchfeeds-py_%s.log' % (config.config['PREFIX'], platform.node()),
+logging.basicConfig(filename='%s/logs/fetchfeeds-py_%s.log' % (config['PREFIX'], platform.node()),
     format='%(levelname)s: %(asctime)s %(message)s', level=logging.INFO)
 
 HTTP_RETRIES = 3      # Number of times to retry on HTTP or connection failure.
