@@ -4,7 +4,6 @@ from multiprocessing import Process, cpu_count
 from progress_bar import ProgressBar
 from config import config
 import urllib2
-import pdb
 import re
 import os
 import sys
@@ -273,7 +272,6 @@ def probe_worker(ip):
     fileno = 0
     r = redis.Redis(ip)
     while True:
-        pdb.set_trace()
         url = r.lpop('blogs')   # pull URL off queue.
         if not url:
             break     # means we are done.
