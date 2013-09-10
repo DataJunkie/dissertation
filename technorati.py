@@ -8,7 +8,7 @@ import re
 import time
 import cPickle
 import os
-import pdb
+import platform
 import logging
 
 """
@@ -20,7 +20,8 @@ subcategories as well as crawling each category and writing the *listings*
 to disk.
 """
 
-logging.basicConfig(format='%(levelname)s: %(asctime)s %(message)s', level=logging.INFO)
+logging.basicConfig(filename='%s/logs/technorati-py_%s.log' % (config.config['PREFIX'], platform.node()),
+    format='%(levelname)s: %(asctime)s %(message)s', level=logging.DEBUG)
 
 """
 TO DO:
@@ -139,15 +140,15 @@ def get_directory_listings(taxonomy):
                 if not page:
                     raise Exception()
             except:
-                logging.error("Could not fetch page %d of category %s. FAIL." % (pg, cat[0]))
-                sys.exit(-1)
+                logging.error("Could not fetch page %d of category %s. SLEEP." % (pg, cat[0]))
+                time.sleep(60)
             if pg == 1:
                 # Extract the last page number.
                 last_page = re.compile('</span><a href="%s' % url + 'page-([0-9]+)/">')
                 max_page = last_page.search(page.replace('\n', '')).group(1)
             # Dump to disk.
             with open(prefix + "directory_listing/tech_%s_%s.html" % (url.split('/')[-2], str(pg)), "w") as OUT:
-                print prefix + "directory_listing/tech_%s_%s.html" % (url.split('/')[-2], str(pg))
+                logging.debug(prefix + "directory_listing/tech_%s_%s.html" % (url.split('/')[-2], str(pg)))
                 OUT.write(page + '\n')
             pg += 1
             # Technorati tends to ban for hammering. Just stop after 20 pages.
@@ -183,7 +184,9 @@ def get_directory_listings(taxonomy):
                     with open(prefix + "directory_listing/tech_%s_%s_%s.html" %
                         (url.split('/')[3], url.split('/')[4], str(pg)), "w") \
                         as OUT:
-        			        OUT.write(page + '\n')
+                            logging.debug(prefix + "directory_listing/tech_%s_%s_%s.html" % 
+                                (url.split('/')[3], url.split('/')[4], str(pg)))
+                            OUT.write(page + '\n')
                     pg += 1
                     # Technorati tends to ban for hammering. Just stop after 20 pages.
                     if pg > min(max_page, HTTP_MAX_PAGE):

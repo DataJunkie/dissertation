@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import socket
+import platform
 import redis
 import cPickle
 import glob
@@ -34,8 +35,8 @@ patt = re.compile(r'(.*?) (?:/ (.*?) )?blogs')
 prefix = config['PREFIX']
 feeds_path = prefix + "raw_feeds/"
 
-logging.basicConfig(format='%(levelname)s: %(asctime)s %(message)s',
-                    level=logging.INFO)
+logging.basicConfig(filename='%s/logs/fetchfeeds-py_%s.log' % (config.config['PREFIX'], platform.node()),
+    format='%(levelname)s: %(asctime)s %(message)s', level=logging.INFO)
 
 HTTP_RETRIES = 3      # Number of times to retry on HTTP or connection failure.
 HTTP_TIMEOUT = 7      # Number of seconds to wait for a response if delay.
@@ -219,7 +220,7 @@ def probe(urlbase, fileno, ip):
     return True
 
 
-def probe_feeds(master_ip="127.0.0.1", cores=cpu_count(), distributed=False):
+def probe_feeds(master_ip, cores=cpu_count(), distributed=False):
     """Autodiscover RSS feeds from a manifest, in parallel.
 
     Input is either a list of URLs, or an IP address to a Redis

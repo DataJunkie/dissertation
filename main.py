@@ -1,4 +1,5 @@
 import argparse
+import logging
 import technorati
 import fetch_feeds
 import multiprocessing
@@ -9,6 +10,7 @@ TO DO:
 2. Divide workflow into more functions.
 3. Use database JOINs rather than having to reconcile multiple dicts.
 """
+
 
 def process_arguments():
     cores = 4 * multiprocessing.cpu_count()
