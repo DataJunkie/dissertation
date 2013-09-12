@@ -4,6 +4,7 @@ from multiprocessing import Process, cpu_count
 from progress_bar import ProgressBar
 from config import config
 import urllib2
+import pdb
 import re
 import os
 import sys
@@ -34,7 +35,7 @@ patt = re.compile(r'(.*?) (?:/ (.*?) )?blogs')
 prefix = config['PREFIX']
 feeds_path = prefix + "raw_feeds/"
 
-logging.basicConfig(filename='%s/logs/fetchfeeds-py_%s.log' % (config['PREFIX'], platform.node()),
+logging.basicConfig(filename='%s/logs/fetchfeeds-py_%s_%s.log' % (config['PREFIX'], platform.node(), str(os.getpid())),
     format='%(levelname)s: %(asctime)s %(message)s', level=logging.INFO)
 
 HTTP_RETRIES = 3      # Number of times to retry on HTTP or connection failure.
@@ -234,24 +235,20 @@ def probe_feeds(master_ip, cores=cpu_count(), distributed=False):
 
     Returns
     """
-
-    logging.info("Fetching feeds using HTTP on %d cores." % cores)
-    cores = 1
-    probe_worker(master_ip)
+    logging.info("Fetching feeds using HTTP on %d cores." % int(cores[0]))
     #Setup processes for parallel processing and the progress bar.
-    #procs = [Process(target=probe_worker, args=(master_ip,)) for p in range(cores-1)]
+    procs = [Process(target=probe_worker, args=(master_ip, p)) for p in range(int(cores[0]))]
     # Only launch progress bar if local.
     #if not distributed:
     #    procs.append(Process(target=progbar, args=(master_ip,)))
-    #for p in procs:
-    #    p.start()
-    #for p in procs:
-    #    p.join()
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
     r = redis.Redis(master_ip)
-    #pdb.set_trace()
-    #logging.info("Success so far: %d" % int(r.get('successes')))
-    #logging.info("Failures so far: %d" % int(r.get('errors')))
-    #logging.info("Probing completed for this worker.")
+    logging.info("Success so far: %d" % int(r.get('successes')))
+    logging.info("Failures so far: %d" % int(r.get('errors')))
+    logging.info("Probing completed for this worker.")
 
 
 def progbar(ip):
@@ -267,7 +264,7 @@ def progbar(ip):
     return
 
 
-def probe_worker(ip):
+def probe_worker(ip, thread):
     """Utility that simply pulls a URL off the queue and makes
     a call to "probe" to actually do the work.
 
@@ -281,6 +278,7 @@ def probe_worker(ip):
             break     # means we are done.
         try:
             content = probe(eval(url)[-1], fileno, ip)    # does the work.
+            r.incr("count_%d" % thread)
             if content:
                 r.incr('successes')
             else:
@@ -288,7 +286,7 @@ def probe_worker(ip):
         except Exception, e:
             # TODO(ryan): What kind of error occurred?
             r.incr('errors')
-            logging.info("Error occured: %s, URL: %s" % (e, url))
+            logging.info("THREAD %d; Error occured: %s, URL: %s" % (thread, e, url))
             ERR = open(prefix + "meta/errors-%s.log" % str(os.getpid()), "a")
             print >> ERR, url, e
             ERR.close()

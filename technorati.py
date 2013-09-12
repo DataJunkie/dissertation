@@ -21,7 +21,7 @@ subcategories as well as crawling each category and writing the *listings*
 to disk.
 """
 
-logging.basicConfig(filename='%s/logs/technorati-py_%s.log' % (config['PREFIX'], platform.node()),
+logging.basicConfig(filename='%s/logs/technorati-py_%s_%s.log' % (config['PREFIX'], platform.node(), str(os.getpid())),
     format='%(levelname)s: %(asctime)s %(message)s', level=logging.DEBUG)
 
 """
