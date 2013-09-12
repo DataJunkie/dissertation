@@ -65,7 +65,7 @@ def harvest_urls():
     manifest = []
     category = {}
     subcategory = {}
-    directoryfiles = "/tmp/technorati/directory_listing/"
+    directoryfiles = "%s/directory_listing/" % config.config['PREFIX'] 
     # ^^ the directory containing the HTML from the Technorati site.
 
     #Set up directory for intermediate data: MANIFEST
@@ -288,7 +288,7 @@ def probe_worker(ip):
             ERR = open(prefix + "meta/errors-%s.log" % str(os.getpid()), "a")
             print >> ERR, url, e
             ERR.close()
-            r.rpush('errors', '|'.join([url, e]))
+            r.rpush('error_messages', '|'.join([url, str(e)]))
         fileno += 1
 
 

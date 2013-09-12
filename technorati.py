@@ -30,11 +30,11 @@ TO DO:
 2. Allow user to specify either database I/O and/or file writing.
 """
 
-prefix = "/tmp/technorati/"  # root directory for temo data for project. See TODO #1.
+prefix = config['PREFIX']  # root directory for temo data for project. See TODO #1.
 pickle = True        # Write taxonomy as a pickle?
 text = True          # Write taxonomy as a flat file?
 
-HTTP_MAX_PAGE = 20  # Maximum number of pages to scrape per category. Avoid banning.
+HTTP_MAX_PAGE = config['HTTP_MAX_PAGE']  # Maximum number of pages to scrape per category. Avoid banning.
 
 
 def get_directory():
