@@ -156,7 +156,6 @@ def get_directory_listings(taxonomy):
             if pg > min(max_page, HTTP_MAX_PAGE):
                 break
             # Let the server recover after our abuse.
-            time.sleep(1)
     logging.info("Done.")
     for cat in taxonomy:
         #each category, scrape each page.
@@ -193,4 +192,3 @@ def get_directory_listings(taxonomy):
                     if pg > min(max_page, HTTP_MAX_PAGE):
                       break
                     # Let the server recover after our abuse.
-                    time.sleep(1)

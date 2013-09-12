@@ -65,7 +65,7 @@ def harvest_urls():
     manifest = []
     category = {}
     subcategory = {}
-    directoryfiles = "%s/directory_listing/" % config.config['PREFIX'] 
+    directoryfiles = "%s/directory_listing/" % config['PREFIX']
     # ^^ the directory containing the HTML from the Technorati site.
 
     #Set up directory for intermediate data: MANIFEST
@@ -151,13 +151,15 @@ def probe(urlbase, fileno, ip):
         try:
             page = urllib2.urlopen(urlbase)
             break
-        except urllib2.URLError:
+        except urllib2.URLError as e:
             #This exception likely means the server hanged in giving a response.
+            logging.error("Error in discovery for url: " + urlbase + " " + str(e))
             TRAP = open(prefix + "meta/access_traps-%s.log" % str(os.getpid()), "a")
             print >> TRAP, urlbase
             TRAP.close()
         cur += 1
     if cur == HTTP_RETRIES:  # timeout on all tries.
+        logging.error("Discovery timed out for URL %s." % urlbase)
         raise Exception("Exceeded HTTP_RETRIES without success.")
 
     # Parse the HTML for the website to find the RSS feed links.
@@ -173,18 +175,20 @@ def probe(urlbase, fileno, ip):
         if not url.startswith('http://') and not url.startswith('feed://') and \
            not url.startswith('https://'):
             url = urlbase + url
-            print >> OUT, urlbase, url, links[0].get('title').encode('utf-8')
-            OUT.close()
-            r.rpush('good_url', url)
-        else:
-            #1) Webmaster chose not to abide by the standard
-            #2) Webmaster provided bad URL that does not contain feed links.
-            NOLINK = open(prefix + "meta/access_nolink-%s.log"
-                          % str(os.getpid()), "a")   # No link found.
-            print >> NOLINK, urlbase
-            NOLINK.close()
-            raise Exception("No URLs detected.")
-            return False
+        logging.debug("Found URL for%s. The URL is %s" % (urlbase, url))
+        print >> OUT, urlbase, url, links[0].get('title').encode('utf-8')
+        OUT.close()
+        r.rpush('good_url', url)
+    else:
+        #1) Webmaster chose not to abide by the standard
+        #2) Webmaster provided bad URL that does not contain feed links.
+        NOLINK = open(prefix + "meta/access_nolink-%s.log"
+            % str(os.getpid()), "a")   # No link found.
+        print >> NOLINK, urlbase
+        NOLINK.close()
+        logging.error("No RSS URLs found for %s." % urlbase)
+        raise Exception("No URLs detected.")
+        return False
 
     # Now fetch the actual RSS feed.
     cur = 0
@@ -200,6 +204,7 @@ def probe(urlbase, fileno, ip):
             except UnicodeError:
                 print >> RAW, content.encode('utf-8')
             RAW.close()
+            logging.debug("Saved RSS feed: %s." % url)
             #MAP THIS FEED URL TO A PID AND CURSOR.
             KEY = open(feeds_path + "key-%s.dat" % os.getpid(), "a")
             print >> KEY, ' '.join([url, str(fileno)])
@@ -207,14 +212,14 @@ def probe(urlbase, fileno, ip):
             break
         except Exception, e:
             #Just tell the user and try again.
-            logging.info("Exception occurred fetching %s: %s" % (url, str(e)))
+            logging.error("Exception occurred fetching %s: %s" % (url, str(e)))
             pass
-        time.sleep(1)
         break
     else:
         FAIL = open(prefix + "meta/failed-%s.log" % str(os.getpid()), "a")
         print >> FAIL, url
         FAIL.close()
+        logging.error("I give up. Could not fetch RSS feed: %s" % url)
         raise Exception("RSS feed found but could not be fetched.")
     return True
 
@@ -259,7 +264,6 @@ def progbar(ip):
         sys.stdout.flush()
         if initial - r.llen('blogs') == initial:
             break
-        time.sleep(1)
     return
 
 
@@ -276,7 +280,7 @@ def probe_worker(ip):
         if not url:
             break     # means we are done.
         try:
-            content = probe(url, fileno, ip)    # does the work.
+            content = probe(eval(url)[-1], fileno, ip)    # does the work.
             if content:
                 r.incr('successes')
             else:
