@@ -52,6 +52,7 @@ def publish_to_redis(urls):
 
     for url in urls:
         r.rpush('blogs', url)
+    r.set('ready', True)
 
 
 def harvest_urls():
