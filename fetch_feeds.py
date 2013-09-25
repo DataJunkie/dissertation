@@ -138,6 +138,9 @@ def probe(urlbase, fileno, ip):
                   2. files containing mapping from PID+number to URL.
     """
 
+    cat = urlbase[0]
+    subcat = urlbase[1]
+
     r = redis.Redis(ip)
     #FETCH
     cur = 0
@@ -151,7 +154,7 @@ def probe(urlbase, fileno, ip):
     # Fetch the website containing the feed.
     while cur < HTTP_RETRIES:
         try:
-            page = urllib2.urlopen(urlbase)
+            page = urllib2.urlopen(urlbase[-1])
             break
         except urllib2.URLError as e:
             #This exception likely means the server hanged in giving a response.
@@ -177,7 +180,7 @@ def probe(urlbase, fileno, ip):
         if not url.startswith('http://') and not url.startswith('feed://') and \
            not url.startswith('https://'):
             url = urlbase + url
-        logging.debug("Found URL for%s. The URL is %s" % (urlbase, url))
+        logging.debug("Found URL for %s. The URL is %s" % (urlbase, url))
         print >> OUT, urlbase, url, links[0].get('title').encode('utf-8')
         OUT.close()
         r.rpush('good_url', url)
@@ -199,7 +202,8 @@ def probe(urlbase, fileno, ip):
         try:
             resp = urllib2.urlopen(url)
             content = resp.read()
-            RAW = open(feeds_path + "%s-%s.xml" % (str(os.getpid()), str(fileno)), "w")
+            RAW = open(feeds_path + "%s-%s_%s-%s.xml" % (cat.replace(" ", ""),
+              subcat.replace(" ", ""), str(os.getpid()), str(fileno)), "w")
             try:
                 #DUMP THE FEED TO DISK
                 print >> RAW, content
@@ -226,7 +230,7 @@ def probe(urlbase, fileno, ip):
     return True
 
 
-def probe_feeds(master_ip, cores=cpu_count(), distributed=False):
+def probe_feeds(master_ip, cores=[cpu_count()], distributed=False):
     """Autodiscover RSS feeds from a manifest, in parallel.
 
     Input is either a list of URLs, or an IP address to a Redis
@@ -236,9 +240,11 @@ def probe_feeds(master_ip, cores=cpu_count(), distributed=False):
 
     Returns
     """
-    logging.info("Fetching feeds using HTTP on %d cores." % int(cores[0]))
+    if type(cores) != int:
+      cores = int(cores[0])
+    logging.info("Fetching feeds using HTTP on %d cores." % cores)
     #Setup processes for parallel processing and the progress bar.
-    procs = [Process(target=probe_worker, args=(master_ip, p)) for p in range(int(cores[0]))]
+    procs = [Process(target=probe_worker, args=(master_ip, p)) for p in range(cores)]
     # Only launch progress bar if local.
     #if not distributed:
     #    procs.append(Process(target=progbar, args=(master_ip,)))
@@ -278,7 +284,7 @@ def probe_worker(ip, thread):
         if not url:
             break     # means we are done.
         try:
-            content = probe(eval(url)[-1], fileno, ip)    # does the work.
+            content = probe(eval(url), fileno, ip)    # does the work.
             r.incr("count_%d" % thread)
             if content:
                 r.incr('successes')
